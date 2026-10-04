@@ -498,7 +498,175 @@ def stage_fonts():
     print(f"fonts: {changed} file(s) changed; {prune_assets()} unused asset(s) deleted")
 
 
-STAGES = {"meta": stage_meta, "rename": stage_rename, "remove": stage_remove, "media": stage_media, "fonts": stage_fonts}
+# --- widgets ----------------------------------------------------------------
+
+# Wix app controls that only worked with Wix's runtime, and copy/markup Wix
+# generated. Found by the post-cleanup review; site.js wires up the ones worth
+# keeping (skip link, blog cards, photo expand).
+EVENT = "event-details/ewb-asia-network-forum-2-climate-change-action-forum/index.html"
+STEM_POST = "post/a-look-back-at-our-stem-workshop-in-partnership-with-ewb-and-tava-reflections-from-volunteer-mikh/index.html"
+NO_EVENTS = (
+    '<li class="static-no-events" style="list-style:none;padding:36px 0;text-align:center;'
+    'font:17px/1.6 nunito-sans-light,Helvetica,Arial,sans-serif;color:#2f2e2e">'
+    "No upcoming events right now. Our past events are below.</li>"
+)
+
+
+def cut_tag(s: str, marker: str, tag: str) -> str:
+    """Remove every element whose own open tag contains `marker`."""
+    while (i := s.find(marker)) != -1:
+        start = s.rfind(f"<{tag}", 0, i)
+        s = s[:start] + s[element_end(s, start):]
+    return s
+
+
+def to_link(s: str, marker: str, href: str) -> str:
+    """Turn the <button> whose open tag contains `marker` into an <a href>."""
+    i = s.find(marker)
+    start = s.rfind("<", 0, i)
+    if i == -1 or not s.startswith("<button", start):  # absent, or already a link
+        return s
+    end = element_end(s, start)
+    el = s[start:end]
+    open_tag = el[: el.index(">") + 1]
+    new_open = re.sub(r'\s(type|data-testid)="[^"]*"', "", open_tag).replace("<button", f'<a href="{href}" data-testid="linkElement"', 1)
+    new_open = new_open.replace("ewbui-button\"", 'ewbui-button StylableButton2545352419__link"')
+    return s[:start] + new_open + el[len(open_tag): -len("</button>")] + "</a>" + s[end:]
+
+
+def stage_widgets():
+    for base in (PUBLIC, PUBLIC / "m"):
+        if (base / "schedule").exists():  # Wix Bookings page, empty and unlinked
+            shutil.rmtree(base / "schedule")
+    sitemap = PUBLIC / "sitemap.xml"
+    write(sitemap, re.sub(r"\s*<url><loc>[^<]*/schedule/</loc></url>", "", read(sitemap)))
+    cfg_path = ROOT / "vercel.json"
+    cfg = json.loads(read(cfg_path))
+    have = {r["source"] for r in cfg["redirects"]}
+    for src, dst in (("/schedule", "/projects-8/"), ("/m/schedule", "/m/projects-8/")):
+        cfg["redirects"] += [{"source": s, "destination": dst, "permanent": True} for s in (src, src + "/") if s not in have]
+    write(cfg_path, json.dumps(cfg, indent=2) + "\n")
+
+    def fix(s, p):
+        rel = p.relative_to(PUBLIC).as_posix()
+        m = "/m" if rel.startswith("m/") else ""
+        page = rel[2:] if m else rel
+
+        # Blur-up placeholders: Wix's script removed data-animate-blur once an image loaded.
+        s = re.sub(r'\s+data-animate-blur(?:="[^"]*")?', "", s)
+        # Alt/title text Wix filled in from uploaded file names.
+        s = s.replace('alt="ewb logo.png"', 'alt="Engineers Without Borders Singapore"')
+        s = re.sub(r'\salt="[^"]*\.(?:jpe?g|png|webp|gif|avif|heic)"', ' alt=""', s, flags=re.I)
+        s = re.sub(r'\stitle="[^"]*\.(?:jpe?g|png|webp|gif)"', "", s, flags=re.I)
+        # Empty structured data Wix emitted on project pages.
+        s = s.replace('<script type="application/ld+json">{}</script>', "")
+        # Comments the blanket wix->ewb rename turned into claims about EWB.
+        s = s.replace("/* dropdown menus rebuilt from Ewb's hidden a11y submenu */", "/* dropdown menus rebuilt from the export's hidden a11y submenu */")
+        s = s.replace("/* Ewb's overflow \"More\" menu item is only shown by its JS when items don't fit */",
+                      "/* the exported overflow \"More\" menu item needed the old site builder's script; keep it hidden */")
+
+        # Header state classes the export froze mid-scroll: K5KBGW slid the header off-screen
+        # (no menu on /m/ and /m/about-us/), qTsNsd made it ignore taps.
+        s = re.sub(
+            r'(<header id="SITE_HEADER" class=")([^"]*)"',
+            lambda mm: mm.group(1) + " ".join(c for c in mm.group(2).split() if c not in ("K5KBGW", "qTsNsd", "chRHgk")) + '"',
+            s,
+        )
+        # Hand-written font stack on the Contact page's Instagram card.
+        s = s.replace("font:18px Avenir,Helvetica,Arial,sans-serif", "font:18px nunito-sans-light,Helvetica,Arial,sans-serif")
+        # Sign-up pop-up: Wix Members "Already a member? Log In" (there are no member accounts).
+        if (i := s.find('<div id="comp-m6z20jib"')) != -1:
+            s = s[:i] + s[element_end(s, i):]
+        # Project pages: Previous/Next were wired to a Wix dataset; keep "< Back".
+        if page.startswith(("past-projects/", "ongoing-projects/")):
+            for label in ("Previous", "Next"):
+                while (i := s.find(f'aria-label="{label}" data-testid="buttonElement"')) != -1:
+                    el = enclosing(s, i, "div", r"\bmu5PoX\b")
+                    s = s[: el[0]] + s[el[1]:]
+        # Blog: search box and per-post "More actions" menus.
+        if (i := s.find('<div class="EKJcYR">')) != -1 and 'data-hook="search-input"' in s[i:i + 300]:
+            s = s[:i] + s[element_end(s, i):]
+        s = cut_tag(s, 'data-hook="search-input"', "div")
+        s = cut_tag(s, 'data-hook="more-button"', "button")
+        # Blog posts: the author name linked to a Wix member profile.
+        s = s.replace(".IkAhjA{color:inherit;cursor:pointer;grid-area:author}", ".IkAhjA{color:inherit;grid-area:author}")
+        s = re.sub(r"\.IkAhjA:hover\{[^}]*\}", "", s)
+
+        if page == "projects-8/index.html":
+            # "Upcoming Events" listed the 2023 forum with Wix's "RSVP Closed" ribbon.
+            if (i := s.find('<div id="comp-l3fkfss7"')) != -1:
+                end = element_end(s, i)
+                widget = s[i:end]
+                while (j := widget.find('data-hook="event-list-item"')) != -1:
+                    start = widget.rfind("<li", 0, j)
+                    widget = widget[:start] + "\x00" + widget[element_end(widget, start):]
+                widget = re.sub(r"\x00+", NO_EVENTS, widget)
+                s = s[:i] + widget + s[end:]
+            # "More info" toggles had nothing to expand; "Details" links to the event.
+            s = cut_tag(s, 'data-hook="more-info-link', "button")
+            while (i := s.find('role="button" aria-expanded="false">More info')) != -1:
+                start = s.rfind("<div", 0, i)
+                s = s[:start] + s[element_end(s, start):]
+            s = to_link(s, 'aria-label="FAQs"', f"{m}/general-6/#comp-l3rhmte2")
+            s = to_link(s, 'aria-label="Ask us here"', f"{m}/stay-connected/")
+        if page in ("projects-8/index.html", EVENT):
+            # Wix Events' default share text.
+            s = re.sub(r"&amp;(?:quote|text)=Check%20out%20this%20event\.%20Hope%20to%20see%20you%20there!", "", s)
+            s = re.sub(r"&(?:quote|text)=Check%20out%20this%20event\.%20Hope%20to%20see%20you%20there!", "", s)
+        if page == EVENT:
+            # Guest list: placeholder avatars and a "+ 52 other guests" button that opened Wix's dialog.
+            if (i := s.find('data-hook="members-title"')) != -1 and (el := enclosing(s, i, "div", r'class="muz7rK"')):
+                s = s[: el[0]] + s[el[1]:]
+            s = cut_tag(s, 'data-hook="membersContainer"', "div")
+            # "See other events" went to the home page.
+            if (i := s.find('data-hook="RSVP_INFO_BUTTON"')) != -1:
+                start = s.rfind("<a", 0, i)
+                close = s.index(">", i)
+                s = s[:start] + re.sub(r'href="/(?:m/)?"', f'href="{m}/projects-8/"', s[start:close]) + s[close:]
+        if rel == STEM_POST:
+            # Wix's fallback SEO ("Post | ...", og:type website): use the mobile page's real tags.
+            seo = re.compile(r"<title>.*?</title>.*<meta name=\"twitter:[a-z]+\"[^>]*>", re.S)
+            mob = read(PUBLIC / "m" / STEM_POST)
+            block = seo.search(mob[: mob.find("</head>")]).group(0)
+            head = s.find("</head>")
+            s = seo.sub(lambda _: block, s[:head], count=1) + s[head:]
+        if rel == "404.html":
+            s = s.replace("There’s Nothing Here...", "Page not found")
+            s = re.sub(
+                r"We can’t find the page you’re looking for\.(<br[^>]*>)\s*Check the URL, or head back home\.",
+                r"That page doesn’t exist or has moved.\1 Check the address, or head back home.",
+                s,
+            )
+        if rel == "general-4/index.html":
+            # Hover text in the first circle: with Nunito Sans its first line ran to the circle edge.
+            s = s.replace("#comp-l8vopcvf{width:310px;height:auto;}", "#comp-l8vopcvf{width:310px;height:auto;padding:0 24px;box-sizing:border-box;}")
+        if rel == "m/index.html":
+            # The mobile slideshow was 423px tall, which hid the end of slides 2 and 3 and their
+            # "Read more" buttons (already so on Wix). Give it room for the tallest slide.
+            s = s.replace("#comp-l3zt5sby{left:0;margin-left:0;width:320px;height:423px;}", "#comp-l3zt5sby{left:0;margin-left:0;width:320px;height:680px;}")
+            s = s.replace("#comp-l3zt5sby{height:423px;", "#comp-l3zt5sby{height:680px;")
+            # ...and let the slide photos fill it (they had the old 423px baked in).
+            s = s.replace('style="width: 320px; height: 423px; object-fit: cover;', 'style="width: 100%; height: 100%; object-fit: cover;')
+            # The volunteers backdrop had a fixed pixel size; with the new fonts the section is
+            # a few px taller, so let the photo fill it.
+            s = s.replace(
+                'style="width: 320px; height: 912px; object-fit: cover;',
+                'style="width: 100%; height: 100%; object-fit: cover;',
+            )
+        return s
+
+    changed = rewrite(html_files(), fix)
+    print(f"widgets: {changed} page(s) changed; {prune_assets()} unused asset(s) deleted")
+
+
+STAGES = {
+    "meta": stage_meta,
+    "rename": stage_rename,
+    "remove": stage_remove,
+    "media": stage_media,
+    "fonts": stage_fonts,
+    "widgets": stage_widgets,
+}
 
 if __name__ == "__main__":
     if not sys.argv[1:] or any(a not in STAGES for a in sys.argv[1:]):

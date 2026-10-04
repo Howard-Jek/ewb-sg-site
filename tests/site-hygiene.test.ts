@@ -38,6 +38,18 @@ describe('no Wix leftovers', () => {
     ).toEqual([]);
   });
 
+  it('has no dead Wix app controls or Wix-generated filler', () => {
+    expect(
+      offenders(
+        /RSVP Closed|other guests|data-hook="events\.MEMBERS"|>Log In<|data-hook="(?:search-input|more-button|more-info-link)|aria-label="(?:Previous|Next)" data-testid="buttonElement"|There’s Nothing Here|Check%20out%20this%20event|<script type="application\/ld\+json">\{\}<\/script>/,
+      ),
+    ).toEqual([]);
+    // Blur-up placeholders that only Wix's script ever cleared.
+    expect(offenders(/<[^>]*\sdata-animate-blur/)).toEqual([]);
+    // Alt text Wix filled in from upload file names.
+    expect(offenders(/\salt="[^"]*\.(?:jpe?g|png|webp|gif|avif)"/i)).toEqual([]);
+  });
+
   it('uses no fonts licensed through Wix', () => {
     expect(offenders(/avenir-lt-w0|helvetica-(?:w0|lt-w10)|helveticaneuew|proxima-n-w|din-next-w|freemium|madefor/i)).toEqual([]);
   });

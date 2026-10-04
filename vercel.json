@@ -98,6 +98,26 @@
       "source": "/m/group/:path*/",
       "destination": "/m/stay-connected/",
       "permanent": true
+    },
+    {
+      "source": "/schedule",
+      "destination": "/projects-8/",
+      "permanent": true
+    },
+    {
+      "source": "/schedule/",
+      "destination": "/projects-8/",
+      "permanent": true
+    },
+    {
+      "source": "/m/schedule",
+      "destination": "/m/projects-8/",
+      "permanent": true
+    },
+    {
+      "source": "/m/schedule/",
+      "destination": "/m/projects-8/",
+      "permanent": true
     }
   ]
 }

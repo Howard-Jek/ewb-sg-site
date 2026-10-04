@@ -50,11 +50,11 @@
     g.querySelectorAll('[data-static-gallery-next]').forEach(function(b){ b.addEventListener('click', function(e){ e.preventDefault(); step(1); }); });
   });
 
-  // Forms: Ewb Forms submitted to Ewb's backend. They now post to /api/forms (a Vercel
+  // Forms: the exported forms posted to the old site builder's backend. They now post to /api/forms (a Vercel
   // function that stores submissions in Supabase); window.EWB_FORM_ENDPOINT overrides it.
   // Each form carries data-form-kind. Feedback: the form's original success message
   // (marked data-static-success) is revealed; field errors use the browser's validation
-  // bubble; anything else goes in a toast, because Ewb lays form children out on a grid
+  // bubble; anything else goes in a toast, because the exported layout puts form children on a grid
   // with no free slot for new text.
   var FAILED = 'Sorry, something went wrong. Please email secretary@ewb.sg instead.';
   var forms = document.querySelectorAll('form[data-form-kind]');
@@ -63,7 +63,7 @@
     toast = document.body.appendChild(document.createElement('div'));
     toast.className = 'static-toast';
     toast.setAttribute('role', 'status');
-    toast.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:max-content;max-width:min(92vw,520px);padding:12px 18px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25);color:#fff;font:15px/1.4 Avenir,"Helvetica Neue",Arial,sans-serif;text-align:center;display:none';
+    toast.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:max-content;max-width:min(92vw,520px);padding:12px 18px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25);color:#fff;font:15px/1.4 nunito-sans-light,"Helvetica Neue",Arial,sans-serif;text-align:center;display:none';
   }
   function notify(text, isError){
     toast.textContent = text;
@@ -134,13 +134,29 @@
   });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeLb(); });
 
+  // "Skip to Main Content": the old site builder's script moved focus; do it here.
+  var skip = document.getElementById('SKIP_TO_CONTENT_BTN'), mainEl = document.getElementById('PAGES_CONTAINER');
+  if (skip && mainEl) skip.addEventListener('click', function(){ mainEl.setAttribute('tabindex', '-1'); mainEl.focus(); mainEl.scrollIntoView(); });
+
+  // Blog lists: the whole card opens its post, not just the title and cover image.
+  document.querySelectorAll('.gallery-item-container').forEach(function(card){
+    var link = card.querySelector('a[href*="/post/"]');
+    if (link) card.addEventListener('click', function(e){ if (!e.target.closest('a,button')) location.href = link.href; });
+  });
+
+  // Blog post photos: the "Expand image" button opens the photo in the viewer below.
+  document.querySelectorAll('[data-hook="image-viewer"]').forEach(function(v){
+    var img = v.querySelector('img');
+    if (img && !v.closest('a')) v.setAttribute('data-static-zoom', img.getAttribute('src'));
+  });
+
   // Gallery: click a photo to view it large
   var zoomItems = [].slice.call(document.querySelectorAll('[data-static-zoom]'));
   if (zoomItems.length) {
     var ov = document.createElement('div');
     ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
     ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;cursor:zoom-out';
-    ov.innerHTML = '<img alt="" style="max-width:92vw;max-height:82vh;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.5)"><div style="color:#fff;font:15px Avenir,Helvetica,Arial,sans-serif;text-align:center;max-width:90vw"></div>'
+    ov.innerHTML = '<img alt="" style="max-width:92vw;max-height:82vh;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.5)"><div style="color:#fff;font:15px nunito-sans-light,Helvetica,Arial,sans-serif;text-align:center;max-width:90vw"></div>'
       + '<button aria-label="Previous" style="position:fixed;left:12px;top:50%;font-size:40px;color:#fff;background:none;border:0;cursor:pointer">&#8249;</button>'
       + '<button aria-label="Next" style="position:fixed;right:12px;top:50%;font-size:40px;color:#fff;background:none;border:0;cursor:pointer">&#8250;</button>'
       + '<button aria-label="Close" style="position:fixed;right:16px;top:12px;font-size:34px;color:#fff;background:none;border:0;cursor:pointer">&times;</button>';
@@ -153,7 +169,7 @@
     document.addEventListener('keydown', function(e){ if (ov.style.display !== 'flex') return; if (e.key === 'Escape') zclose(); if (e.key === 'ArrowLeft') zshow(zi - 1); if (e.key === 'ArrowRight') zshow(zi + 1); });
   }
 
-  // Blog post share / print buttons (Ewb Blog app)
+  // Blog post share / print buttons (from the exported blog)
   var canon = (document.querySelector('link[rel=canonical]') || {}).href || location.href;
   var shares = { 'Share via Facebook': 'https://www.facebook.com/sharer/sharer.php?u=', 'Share via LinkedIn': 'https://www.linkedin.com/sharing/share-offsite/?url=', 'Share via X (Twitter)': 'https://twitter.com/intent/tweet?url=' };
   document.querySelectorAll('button[aria-label], [role=button][aria-label]').forEach(function(b){
@@ -168,16 +184,19 @@
     var content = document.getElementById(h.getAttribute('aria-controls'));
     var panel = content && content.parentElement;
     if (!panel) return;
+    // The exported animation wrapper is frozen at height 0 with overflow hidden.
+    var wrap = panel.parentElement && panel.parentElement.classList.contains('rah-static') ? panel.parentElement : null;
     h.addEventListener('click', function(e){
       e.preventDefault();
       var open = h.getAttribute('aria-expanded') !== 'true';
       h.setAttribute('aria-expanded', open); content.setAttribute('aria-hidden', !open);
+      if (wrap) { wrap.style.height = open ? 'auto' : '0'; wrap.style.overflow = open ? 'visible' : 'hidden'; }
       panel.style.display = open ? '' : 'none';
       requestAnimationFrame(function(){ panel.style.opacity = open ? '1' : '0'; });
     });
   });
 
-  // Hover boxes: tap toggles the hover state (mirrors Ewb's mobile behaviour)
+  // Hover boxes: tap toggles the hover state (as the original site did on mobile)
   document.querySelectorAll('[aria-label="content changes on hover"]').forEach(function(box){
     box.addEventListener('click', function(e){ if (e.target.closest('a')) return; box.classList.toggle('static-hover'); });
   });
