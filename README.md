@@ -7,12 +7,18 @@ submissions in Supabase.
 ```
 public/                 the site, served as-is (desktop pages + mobile variants under /m)
   assets/site.js        replaces Wix's runtime: menus, slideshows, lightboxes, form posting
+  assets/media/         images (EWB's own uploads, plus our SVG icons and backdrops)
+  assets/static/        page stylesheets and open-licensed Google Fonts
+  assets/files/         PDFs (AGM minutes, newsletters)
+  assets/fonts/         self-hosted open-licensed fonts, with their OFL licence texts
 api/forms.ts            POST /api/forms → Supabase
 lib/forms.ts            validation for each form (field names = HTML `name` attributes)
 lib/handler.ts          request checks (origin, size, JSON) and responses
 supabase/migrations/    database schema
 scripts/wire-forms.py   one-off that connected the exported Wix forms to /api/forms
-build-manifest.json     map of original Wix asset URLs to files under public/assets
+scripts/remove-wix-leftovers.py
+                        one-off that stripped what the Wix export left behind (see below)
+build-manifest.json     map of original Wix asset URLs to files under public/assets (not served)
 ```
 
 ## Forms → tables
@@ -35,6 +41,24 @@ using the secret key, can write.
 Spam protection: a hidden honeypot field (`website`), same-origin check, 16 KB
 body limit, and strict validation (also enforced by table constraints).
 
+## What was removed from the Wix export
+
+`scripts/remove-wix-leftovers.py` (stages `meta`, `rename`, `remove`, `media`,
+`fonts`) and `tests/site-hygiene.test.ts`, which fails if any of it comes back:
+
+- Wix template titles/metadata ("Save Our Shores", "Business, tagline"), Wix
+  URLs in JSON-LD, source maps and Pinterest attributes pointing at Wix's CDN.
+- Asset folders named after Wix hosts, and "wix" in class names and CSS
+  variables (renamed "ewb"; every page was screenshot-compared, pixel-identical).
+- Placeholder events (Past Event 1/2, Trial Event, Donation Drive), the frozen
+  Wix Groups forum and the Wix comment boxes on blog posts. Their old URLs
+  redirect to the Events / Stay Connected pages (`vercel.json`).
+- Images from Wix's media library (social icons, three stock backdrops, the 404
+  illustration), which Wix licenses for Wix-hosted sites, replaced with our own SVGs.
+- Fonts licensed through Wix: Avenir → Nunito Sans, Proxima Nova → Montserrat,
+  DIN Next → Barlow (all OFL, self-hosted), Helvetica → the visitor's own
+  Helvetica/Arial. Wix's Madefor → Nunito Sans. Belleza (OFL) is kept.
+
 ## Environment variables (Vercel, Production)
 
 See `.env.example`. `SUPABASE_SECRET_KEY` is server-only; keep it marked
@@ -45,7 +69,7 @@ rather than writing to the live tables.
 
 ```bash
 npm install
-npm test           # validator, handler and HTML-form contract tests
+npm test           # validator, handler, HTML-form contract and site-hygiene tests
 npm run typecheck
 npx vercel dev     # site + /api/forms locally (pull env first: npx vercel env pull)
 ```

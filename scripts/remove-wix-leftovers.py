@@ -133,6 +133,8 @@ def stage_meta():
 
     def fix(s, p):
         s = s.replace("| Save Our Shores", "| EWB Singapore")  # Wix template site name
+        # Link text Wix generated from the linked page's Wix title.
+        s = s.replace("<span>Post | Ewbsg</span>", "<span>Post-Trip Journal - Nepal Recce, March 2022</span>")
         s = re.sub(r'[ \t]*<meta name="keywords" content="Business, tagline">\n?', "", s)
         s = re.sub(r'[ \t]*<meta name="skype_toolbar"[^>]*>\n?', "", s)
         s = re.sub(r'[ \t]*<meta http-equiv="X-UA-Compatible"[^>]*>\n?', "", s)
@@ -398,7 +400,105 @@ def stage_media():
     print(f"media: {len(moves)} Wix-library file(s) replaced in {changed} file(s); {prune_assets()} unused asset(s) deleted")
 
 
-STAGES = {"meta": stage_meta, "rename": stage_rename, "remove": stage_remove, "media": stage_media}
+# --- fonts ------------------------------------------------------------------
+
+# Avenir, Helvetica (Neue), DIN Next and Proxima Nova came from Wix's font
+# service, licensed for Wix-hosted sites. Swap each for an open-licensed
+# look-alike self-hosted from public/assets/fonts (Fontsource 5.3.0 builds;
+# OFL texts alongside), or for the visitor's own Helvetica/Arial. Wix's
+# Madefor (open, but Wix-branded) becomes Nunito Sans; Belleza (OFL, uploaded
+# by EWB) keeps its files under its own name.
+LATIN = (
+    "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,"
+    "U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
+)
+LATIN_EXT = (
+    "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,"
+    "U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF"
+)
+
+
+def _hosted(alias: str, stem: str) -> str:
+    # Weight 400 like the Wix aliases they replace: each alias names one cut.
+    return "".join(
+        f"@font-face{{font-family:{alias};font-style:normal;font-weight:400;font-display:swap;"
+        f'src:url(/assets/fonts/{stem.format(subset=sub)}.woff2) format("woff2");unicode-range:{rng}}}'
+        for sub, rng in (("latin", LATIN), ("latin-ext", LATIN_EXT))
+    )
+
+
+def _system(alias: str, weight: int, *names: str) -> str:
+    srcs = ",".join(f'local("{n}")' for n in names)
+    return f"@font-face{{font-family:{alias};font-style:normal;font-weight:{weight};src:{srcs}}}"
+
+
+FONT_FACES = (
+    _hosted("nunito-sans-light", "nunito-sans-{subset}-300-normal")
+    + _hosted("nunito-sans-heavy", "nunito-sans-{subset}-800-normal")
+    + _hosted("nunito-sans", "nunito-sans-{subset}-400-normal")
+    + _hosted("montserrat-regular", "montserrat-{subset}-400-normal")
+    + _hosted("barlow-light", "barlow-{subset}-300-normal")
+    + _system("helvetica-system", 400, "Helvetica Neue", "HelveticaNeue", "Helvetica", "Arial", "ArialMT")
+    + _system("helvetica-system", 700, "Helvetica Neue Bold", "HelveticaNeue-Bold", "Helvetica Bold",
+              "Helvetica-Bold", "Arial Bold", "Arial-BoldMT")
+    + _system("helvetica-light-system", 400, "Helvetica Neue Light", "HelveticaNeue-Light", "Helvetica Light",
+              "Helvetica-Light", "Arial", "ArialMT")
+    + "@font-face{font-family:belleza;font-display:swap;src:url(/assets/fonts/belleza.woff2) format(\"woff2\"),"
+    "url(/assets/fonts/belleza.woff) format(\"woff\"),url(/assets/fonts/belleza.ttf) format(\"truetype\")}"
+)
+
+# Old family names (as @font-face aliases or fallbacks in font stacks) -> new alias.
+FONT_NAMES = [
+    (r"avenir-lt-w0[15]_35-light(?:1475496)?", "nunito-sans-light"),
+    (r"avenir-lt-w0[15]_85-heavy(?:1475544)?", "nunito-sans-heavy"),
+    (r"proxima-n-w0[15]-reg", "montserrat-regular"),
+    (r"din-next-w(?:01|02|10)-light", "barlow-light"),
+    (r"helvetica-(?:w0[12]|lt-w10)-light", "helvetica-light-system"),
+    (r"helvetica-(?:w0[12]|lt-w10)-roman", "helvetica-system"),
+    (r"helveticaneuew(?:01|02|10)-(?:35thin|45ligh)", "helvetica-light-system"),
+    (r"helveticaneuew(?:01|02|10)-(?:55roma|65medi)", "helvetica-system"),
+    (r"ewbfreemiumfontw(?:01|02|10)-(?:35thin|45ligh)", "helvetica-light-system"),
+    (r"ewbfreemiumfontw(?:01|02|10)-(?:55roma|65medi)", "helvetica-system"),
+    (r"madefor(?:-text| text| display)?", "nunito-sans"),
+    (r"wf_a6909f97d5aa445eb3e9bfbf1|wfont_4ce402_a6909f97d5aa445eb3e9bfbf1c89d08d|orig_belleza_regular", "belleza"),
+]
+OLD_FONT = re.compile(r"(?<![\w-])(?:%s)(?![\w-])" % "|".join(p for p, _ in FONT_NAMES), re.I)
+BELLEZA = {"76794673bb-file.woff2": "belleza.woff2", "32979fe127-file.woff": "belleza.woff", "9c15a69be5-file.ttf": "belleza.ttf"}
+
+
+def rename_font(m: re.Match) -> str:
+    return next(new for pat, new in FONT_NAMES if re.fullmatch(pat, m.group(0), re.I))
+
+
+def stage_fonts():
+    fonts = PUBLIC / "assets" / "fonts"
+    for old, new in BELLEZA.items():
+        if (PUBLIC / "assets" / "media" / old).exists():
+            (PUBLIC / "assets" / "media" / old).rename(fonts / new)
+    for f in FONT_FACES.split("url(/assets/fonts/")[1:]:
+        assert (fonts / f.split(")")[0]).exists(), f"missing font file {f.split(')')[0]}"
+
+    def fix(s, p):
+        # Drop @font-face blocks for the replaced families; ours go in one block per page.
+        s = re.sub(
+            r"@font-face\s*\{[^}]*\}",
+            lambda m: "" if OLD_FONT.search(re.search(r"font-family:\s*([^;]+)", m.group(0)).group(1)) else m.group(0),
+            s,
+        )
+        if p.suffix == ".html" and "</head>" in s:
+            block = f'<style id="static-fonts">{FONT_FACES}</style>'
+            if 'id="static-fonts"' in s:
+                s = re.sub(r'<style id="static-fonts">.*?</style>', lambda _: block, s, flags=re.S)
+            else:
+                s = s.replace("</head>", block + "</head>", 1)
+        # Wix's UI kit also tags elements with a "--madefor" class modifier.
+        return re.sub(r"--madefor(?![\w-])", "--uifont", OLD_FONT.sub(rename_font, s))
+
+    changed = rewrite([p for p in text_files() if p.suffix in (".html", ".css", ".js")], fix)
+    print(f"fonts: {changed} file(s) changed; {prune_assets()} unused asset(s) deleted")
+
+
+STAGES = {"meta": stage_meta, "rename": stage_rename, "remove": stage_remove, "media": stage_media, "fonts": stage_fonts}
 
 if __name__ == "__main__":
     if not sys.argv[1:] or any(a not in STAGES for a in sys.argv[1:]):
