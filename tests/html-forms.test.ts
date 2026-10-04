@@ -77,6 +77,15 @@ describe('exported HTML forms', () => {
         expect(result).toMatchObject({ ok: true, spam: false });
       });
 
+      it('starts every dropdown on its placeholder, not the first real option', () => {
+        // Without `selected`, browsers skip the disabled placeholder and preselect
+        // the first real option, which would then be submitted silently.
+        for (const [, placeholder] of html.matchAll(/<select\b[^>]*>(<option\b[^>]*>)/g)) {
+          expect(placeholder).toMatch(/value=""/);
+          expect(placeholder).toMatch(/\sselected(="")?[\s>]/);
+        }
+      });
+
       it('marks its success message, if the original form had one', () => {
         const body = html.slice(formTag.length);
         const hasThanks = /Thank(s| you) for/.test(body);

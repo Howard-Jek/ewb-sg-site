@@ -2,9 +2,9 @@
 """One-off: wire the exported Wix forms to /api/forms. Idempotent.
 
 For every <form> in public/: tag it with data-form-kind, give the fields Wix
-left unnamed a `name`, add a hidden honeypot input, and mark the form's
-original (hidden) success message with data-static-success so site.js can
-reveal it. tests/html-forms.test.ts checks the result.
+left unnamed a `name`, start dropdowns on their placeholder, add a hidden
+honeypot input, and mark the form's original (hidden) success message with
+data-static-success so site.js can reveal it. tests/html-forms.test.ts checks the result.
 """
 import pathlib
 import re
@@ -53,6 +53,13 @@ def wire(form: str) -> str:
             body,
         )
     body = re.sub(r'<input\b(?![^>]*\sname=)([^>]*type="checkbox")', r'<input name="terms-accepted"\1', body)
+    # Wix selected the disabled placeholder with JS; without `selected` the browser
+    # preselects the first real option (e.g. "Diploma") and it gets submitted.
+    body = re.sub(
+        r'(<select\b[^>]*>)<option value="" disabled=""(?![^>]*\sselected)([^>]*)>',
+        r'\1<option value="" disabled=""\2 selected="">',
+        body,
+    )
     for el_id in SUCCESS_IDS:
         body = re.sub(rf'<div id="{el_id}"(?![^>]*data-static-success)', rf'<div id="{el_id}" data-static-success', body)
     if 'name="website"' not in body:

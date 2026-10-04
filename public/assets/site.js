@@ -52,42 +52,62 @@
 
   // Forms: Wix Forms submitted to Wix's backend. They now post to /api/forms (a Vercel
   // function that stores submissions in Supabase); window.EWB_FORM_ENDPOINT overrides it.
-  // Each form carries data-form-kind; the original success message, if the form had one,
-  // is marked data-static-success and revealed on success.
+  // Each form carries data-form-kind. Feedback: the form's original success message
+  // (marked data-static-success) is revealed; field errors use the browser's validation
+  // bubble; anything else goes in a toast, because Wix lays form children out on a grid
+  // with no free slot for new text.
   var FAILED = 'Sorry, something went wrong. Please email secretary@ewb.sg instead.';
-  document.querySelectorAll('form').forEach(function(f){
+  var forms = document.querySelectorAll('form[data-form-kind]');
+  var toast, toastTimer;
+  if (forms.length) {
+    toast = document.body.appendChild(document.createElement('div'));
+    toast.className = 'static-toast';
+    toast.setAttribute('role', 'status');
+    toast.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:max-content;max-width:min(92vw,520px);padding:12px 18px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25);color:#fff;font:15px/1.4 Avenir,"Helvetica Neue",Arial,sans-serif;text-align:center;display:none';
+  }
+  function notify(text, isError){
+    toast.textContent = text;
+    toast.style.background = isError ? '#9b1c1c' : '#1d3b5c';
+    toast.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.style.display = 'none'; }, 8000);
+  }
+  forms.forEach(function(f){
     var success = f.querySelector('[data-static-success]');
     var buttons = f.querySelectorAll('button');
-    var msg = f.appendChild(Object.assign(document.createElement('div'), { className: 'static-form-msg' }));
-    msg.setAttribute('role', 'status');
     var busy = function(v){ f.setAttribute('aria-busy', v); buttons.forEach(function(b){ b.disabled = v; }); };
+    var clear = function(e){ var x = e.target; if (x.setCustomValidity) { x.setCustomValidity(''); x.removeAttribute('aria-invalid'); } };
+    f.addEventListener('input', clear);
+    f.addEventListener('change', clear);
     f.addEventListener('submit', function(e){
       e.preventDefault();
       if (f.getAttribute('aria-busy') === 'true') return;
-      var data = { _kind: f.getAttribute('data-form-kind') || '', _page: location.pathname };
-      f.querySelectorAll('input,select,textarea').forEach(function(x){ if (!x.name) return; x.removeAttribute('aria-invalid'); if (x.type === 'checkbox') data[x.name] = x.checked; else if (x.value !== '') data[x.name] = x.value; });
-      msg.textContent = '';
+      var data = { _kind: f.getAttribute('data-form-kind'), _page: location.pathname };
+      f.querySelectorAll('input,select,textarea').forEach(function(x){ if (!x.name) return; if (x.type === 'checkbox') data[x.name] = x.checked; else if (x.value !== '') data[x.name] = x.value; });
       if (success) success.style.removeProperty('visibility');
       busy(true);
       fetch(FORM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(data) })
         .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(body){ return { ok: r.ok, body: body }; }); })
         .then(function(res){
+          busy(false);
           if (res.ok) {
             f.reset();
             if (success) success.style.setProperty('visibility', 'visible', 'important');
-            else msg.textContent = f.getAttribute('data-success') || 'Thank you! Your submission has been received.';
+            else notify(f.getAttribute('data-success') || 'Thank you! Your submission has been received.');
             return;
           }
-          var fields = res.body.fields || {};
-          var problems = Object.keys(fields).map(function(k){
+          var fields = res.body.fields || {}, flagged = false;
+          Object.keys(fields).forEach(function(k){
             var input = f.querySelector('[name="' + k + '"]');
-            if (input) input.setAttribute('aria-invalid', 'true');
-            return fields[k];
+            if (!input || !input.setCustomValidity) return;
+            input.setCustomValidity(fields[k]);
+            input.setAttribute('aria-invalid', 'true');
+            flagged = true;
           });
-          msg.textContent = problems.length ? problems.join(' ') : (res.body.error || FAILED);
+          if (flagged) f.reportValidity();
+          else notify(res.body.error || FAILED, true);
         })
-        .catch(function(){ msg.textContent = FAILED; })
-        .then(function(){ busy(false); });
+        .catch(function(){ busy(false); notify(FAILED, true); });
     });
   });
 
