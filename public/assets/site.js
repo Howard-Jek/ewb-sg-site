@@ -1,7 +1,7 @@
 
 (function(){
   var MOBILE = document.documentElement.getAttribute('data-variant') === 'mobile';
-  var FORM_ENDPOINT = window.EWB_FORM_ENDPOINT || "";
+  var FORM_ENDPOINT = window.EWB_FORM_ENDPOINT || "/api/forms";
 
   // Desktop dropdown menus
   document.querySelectorAll('li.wixui-dropdown-menu__item').forEach(function(li){
@@ -50,19 +50,44 @@
     g.querySelectorAll('[data-static-gallery-next]').forEach(function(b){ b.addEventListener('click', function(e){ e.preventDefault(); step(1); }); });
   });
 
-  // Forms: Wix Forms submitted to Wix's backend. Post to a configurable endpoint (e.g. Formspree, Basin, a serverless function).
+  // Forms: Wix Forms submitted to Wix's backend. They now post to /api/forms (a Vercel
+  // function that stores submissions in Supabase); window.EWB_FORM_ENDPOINT overrides it.
+  // Each form carries data-form-kind; the original success message, if the form had one,
+  // is marked data-static-success and revealed on success.
+  var FAILED = 'Sorry, something went wrong. Please email secretary@ewb.sg instead.';
   document.querySelectorAll('form').forEach(function(f){
+    var success = f.querySelector('[data-static-success]');
+    var buttons = f.querySelectorAll('button');
+    var msg = f.appendChild(Object.assign(document.createElement('div'), { className: 'static-form-msg' }));
+    msg.setAttribute('role', 'status');
+    var busy = function(v){ f.setAttribute('aria-busy', v); buttons.forEach(function(b){ b.disabled = v; }); };
     f.addEventListener('submit', function(e){
       e.preventDefault();
-      var name = f.getAttribute('data-form-name') || 'Website form';
-      var data = {}; new FormData(f).forEach(function(v, k){ data[k] = v; });
-      f.querySelectorAll('input,select,textarea').forEach(function(x, n){ var k = x.name || x.getAttribute('aria-label') || x.placeholder || ('field' + n); if (x.type === 'checkbox') data[k] = x.checked; else if (x.value !== '') data[k] = x.value; });
-      var msg = f.querySelector('.static-form-msg') || f.appendChild(Object.assign(document.createElement('div'), { className: 'static-form-msg', role: 'status' }));
-      if (!FORM_ENDPOINT) { msg.textContent = 'Thank you! (Form endpoint not configured yet — see README: EWB_FORM_ENDPOINT.)'; console.warn('Form submitted but no endpoint configured', name, data); return; }
-      data._form = name;
+      if (f.getAttribute('aria-busy') === 'true') return;
+      var data = { _kind: f.getAttribute('data-form-kind') || '', _page: location.pathname };
+      f.querySelectorAll('input,select,textarea').forEach(function(x){ if (!x.name) return; x.removeAttribute('aria-invalid'); if (x.type === 'checkbox') data[x.name] = x.checked; else if (x.value !== '') data[x.name] = x.value; });
+      msg.textContent = '';
+      if (success) success.style.removeProperty('visibility');
+      busy(true);
       fetch(FORM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(data) })
-        .then(function(r){ msg.textContent = r.ok ? (f.getAttribute('data-success') || 'Thank you! Your submission has been received.') : 'Sorry, something went wrong. Please email us instead.'; if (r.ok) f.reset(); })
-        .catch(function(){ msg.textContent = 'Sorry, something went wrong. Please email us instead.'; });
+        .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(body){ return { ok: r.ok, body: body }; }); })
+        .then(function(res){
+          if (res.ok) {
+            f.reset();
+            if (success) success.style.setProperty('visibility', 'visible', 'important');
+            else msg.textContent = f.getAttribute('data-success') || 'Thank you! Your submission has been received.';
+            return;
+          }
+          var fields = res.body.fields || {};
+          var problems = Object.keys(fields).map(function(k){
+            var input = f.querySelector('[name="' + k + '"]');
+            if (input) input.setAttribute('aria-invalid', 'true');
+            return fields[k];
+          });
+          msg.textContent = problems.length ? problems.join(' ') : (res.body.error || FAILED);
+        })
+        .catch(function(){ msg.textContent = FAILED; })
+        .then(function(){ busy(false); });
     });
   });
 
