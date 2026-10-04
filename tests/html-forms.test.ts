@@ -65,6 +65,9 @@ describe('exported HTML forms', () => {
         expect(honeypot).toBeDefined();
         expect(honeypot).toMatch(/tabindex="-1"/);
         expect(honeypot).toMatch(/autocomplete="off"/);
+        // Last, so "focus the first field" code (the sign-up pop-up) never lands in
+        // it: anything typed there gets the submission discarded as spam.
+        expect(fields.at(-1)).toBe(honeypot);
       });
 
       it('submits a payload the API accepts', () => {
@@ -95,4 +98,22 @@ describe('exported HTML forms', () => {
       });
     });
   }
+});
+
+describe('site.js lightbox autofocus', () => {
+  const siteJs = readFileSync(join(PUBLIC, 'assets', 'site.js'), 'utf8');
+
+  it('never focuses the honeypot when a pop-up opens', () => {
+    const lightboxes = htmlFiles(PUBLIC).flatMap((file) => {
+      const html = readFileSync(file, 'utf8');
+      return [...html.matchAll(/data-static-lightbox="[^"]*"[\s\S]*?<\/form>/g)].map((m) => m[0]);
+    });
+    expect(lightboxes.length).toBe(4);
+    for (const lb of lightboxes) {
+      const first = lb.match(/<(?:input|select|textarea)\b[^>]*>/)![0];
+      expect(attr(first, 'name')).toBe('first-name');
+    }
+    // And site.js skips the honeypot even if a form is re-exported with it first.
+    expect(siteJs).toMatch(/closest\('\.static-hp'\)/);
+  });
 });

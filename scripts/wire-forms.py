@@ -62,8 +62,10 @@ def wire(form: str) -> str:
     )
     for el_id in SUCCESS_IDS:
         body = re.sub(rf'<div id="{el_id}"(?![^>]*data-static-success)', rf'<div id="{el_id}" data-static-success', body)
-    if 'name="website"' not in body:
-        body = HONEYPOT + body
+    # The honeypot goes last: the sign-up pop-up focuses the first field, and
+    # anything typed into the honeypot gets the submission discarded as spam.
+    body = body.replace(HONEYPOT, "")
+    body = body[: -len("</form>")] + HONEYPOT + "</form>"
     return tag + body
 
 

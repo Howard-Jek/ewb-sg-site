@@ -121,7 +121,8 @@
       var lb = document.querySelector('[data-static-lightbox="' + t.getAttribute('data-static-lightbox-open') + '"]');
       if (!lb) return;
       closeLb(); lb.style.display = 'block'; document.documentElement.style.overflow = 'hidden'; openLb = lb;
-      var f = lb.querySelector('input,select,textarea'); if (f) setTimeout(function(){ f.focus(); }, 50);
+      var f = [].find.call(lb.querySelectorAll('input,select,textarea'), function(x){ return !x.closest('.static-hp'); });
+      if (f) setTimeout(function(){ f.focus(); }, 50);
     });
   });
   document.querySelectorAll('[data-static-lightbox]').forEach(function(lb){
