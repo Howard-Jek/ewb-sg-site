@@ -4,7 +4,7 @@
   var FORM_ENDPOINT = window.EWB_FORM_ENDPOINT || "/api/forms";
 
   // Desktop dropdown menus
-  document.querySelectorAll('li.wixui-dropdown-menu__item').forEach(function(li){
+  document.querySelectorAll('li.ewbui-dropdown-menu__item').forEach(function(li){
     var list = li.querySelector(':scope > ul[aria-hidden]');
     if (!list) return;
     li.classList.add('static-dd'); list.classList.add('static-dd-list'); list.removeAttribute('aria-hidden'); list.style.display='';
@@ -42,7 +42,7 @@
   });
 
   // Gallery sliders: arrows scroll the strip
-  document.querySelectorAll('.wixui-gallery').forEach(function(g){
+  document.querySelectorAll('.ewbui-gallery').forEach(function(g){
     var strip = g.querySelector('[data-static-gallery-strip]');
     if (!strip) return;
     var step = function(d){ strip.scrollBy({ left: d * strip.clientWidth * 0.9, behavior: 'smooth' }); };
@@ -50,11 +50,11 @@
     g.querySelectorAll('[data-static-gallery-next]').forEach(function(b){ b.addEventListener('click', function(e){ e.preventDefault(); step(1); }); });
   });
 
-  // Forms: Wix Forms submitted to Wix's backend. They now post to /api/forms (a Vercel
+  // Forms: Ewb Forms submitted to Ewb's backend. They now post to /api/forms (a Vercel
   // function that stores submissions in Supabase); window.EWB_FORM_ENDPOINT overrides it.
   // Each form carries data-form-kind. Feedback: the form's original success message
   // (marked data-static-success) is revealed; field errors use the browser's validation
-  // bubble; anything else goes in a toast, because Wix lays form children out on a grid
+  // bubble; anything else goes in a toast, because Ewb lays form children out on a grid
   // with no free slot for new text.
   var FAILED = 'Sorry, something went wrong. Please email secretary@ewb.sg instead.';
   var forms = document.querySelectorAll('form[data-form-kind]');
@@ -153,7 +153,7 @@
     document.addEventListener('keydown', function(e){ if (ov.style.display !== 'flex') return; if (e.key === 'Escape') zclose(); if (e.key === 'ArrowLeft') zshow(zi - 1); if (e.key === 'ArrowRight') zshow(zi + 1); });
   }
 
-  // Blog post share / print buttons (Wix Blog app)
+  // Blog post share / print buttons (Ewb Blog app)
   var canon = (document.querySelector('link[rel=canonical]') || {}).href || location.href;
   var shares = { 'Share via Facebook': 'https://www.facebook.com/sharer/sharer.php?u=', 'Share via LinkedIn': 'https://www.linkedin.com/sharing/share-offsite/?url=', 'Share via X (Twitter)': 'https://twitter.com/intent/tweet?url=' };
   document.querySelectorAll('button[aria-label], [role=button][aria-label]').forEach(function(b){
@@ -177,7 +177,7 @@
     });
   });
 
-  // Hover boxes: tap toggles the hover state (mirrors Wix's mobile behaviour)
+  // Hover boxes: tap toggles the hover state (mirrors Ewb's mobile behaviour)
   document.querySelectorAll('[aria-label="content changes on hover"]').forEach(function(box){
     box.addEventListener('click', function(e){ if (e.target.closest('a')) return; box.classList.toggle('static-hover'); });
   });
