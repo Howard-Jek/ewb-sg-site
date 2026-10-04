@@ -236,18 +236,28 @@ def stage_remove():
     def fix(s, p):
         # Rows/cards for the placeholder events on the Events page lists.
         body = s.find("<body")
-        while m := re.compile(r"event-details(?:/|%2F)(?:%s)\b" % events).search(s, body):
+        while m := re.compile(r"event-details(?:/|%%2F)(?:%s)\b" % events).search(s, body):
             el = enclosing(s, m.start(), "li", r'data-hook="(?:event-list-item|events-card)"')
             if el is None:
                 raise SystemExit(f"{p.relative_to(PUBLIC)}: event link outside a list item at {m.start()}")
             s = s[: el[0]] + s[el[1]:]
+        if p.parent.name == "projects-8":
+            # The list section was sized for five events: drop its empty background
+            # strip (desktop) and fixed minimum height (mobile) so it fits one.
+            if (i := s.find('<section id="comp-l3fkfl6l"')) != -1:
+                s = s[:i] + s[element_end(s, i):]
+            s = re.sub(
+                r"(\[data-mesh-id=comp-li1ox2e8inlineContent-gridContainer\]\{[^}]*?min-height:)\d+px",
+                r"\1auto",
+                s,
+            )
         # "Groups List" menu items (desktop dropdown and mobile menu).
         for href in ('href="/groups/"', 'href="/m/groups/"'):
             s = cut_all(s, href, "li", "", "Groups List link", p)
         # Wix Comments box at the end of blog posts: the section wrapping the widget.
         while (i := s.find('data-hook="wc-root')) != -1:
-            widget = enclosing(s, i, "section")
-            outer = enclosing(s, widget[0], "section") if widget else None
+            widget = s.rfind("<section", 0, i)  # the marker is an attribute of this tag
+            outer = enclosing(s, widget, "section") if widget != -1 else None
             if outer is None:
                 raise SystemExit(f"{p.relative_to(PUBLIC)}: comments widget without a wrapping section")
             s = s[: outer[0]] + s[outer[1]:]
@@ -260,8 +270,12 @@ def stage_remove():
     cfg_path = ROOT / "vercel.json"
     cfg = json.loads(read(cfg_path))
     have = {r["source"] for r in cfg.get("redirects", [])}
+    # Vercel matches sources exactly, so list each with and without the trailing slash.
     cfg["redirects"] = cfg.get("redirects", []) + [
-        {"source": src, "destination": dst, "permanent": True} for src, dst in REDIRECTS if src not in have
+        {"source": s, "destination": dst, "permanent": True}
+        for src, dst in REDIRECTS
+        for s in (src, src + "/")
+        if s not in have
     ]
     write(cfg_path, json.dumps(cfg, indent=2) + "\n")
     print(f"remove: {changed} page(s) edited, {len(DEAD_DIRS) * 2} director(ies) removed")

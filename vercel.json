@@ -3,20 +3,101 @@
   "framework": null,
   "buildCommand": "",
   "outputDirectory": "public",
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "headers": [
     {
       "source": "/assets/([^/]+)/(.+)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000"
+        }
+      ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
       ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/event-details/:slug(past-event-1|past-event-2|trial-event|donation-drive)",
+      "destination": "/projects-8/",
+      "permanent": true
+    },
+    {
+      "source": "/event-details/:slug(past-event-1|past-event-2|trial-event|donation-drive)/",
+      "destination": "/projects-8/",
+      "permanent": true
+    },
+    {
+      "source": "/m/event-details/:slug(past-event-1|past-event-2|trial-event|donation-drive)",
+      "destination": "/m/projects-8/",
+      "permanent": true
+    },
+    {
+      "source": "/m/event-details/:slug(past-event-1|past-event-2|trial-event|donation-drive)/",
+      "destination": "/m/projects-8/",
+      "permanent": true
+    },
+    {
+      "source": "/groups",
+      "destination": "/stay-connected/",
+      "permanent": true
+    },
+    {
+      "source": "/groups/",
+      "destination": "/stay-connected/",
+      "permanent": true
+    },
+    {
+      "source": "/group/:path*",
+      "destination": "/stay-connected/",
+      "permanent": true
+    },
+    {
+      "source": "/group/:path*/",
+      "destination": "/stay-connected/",
+      "permanent": true
+    },
+    {
+      "source": "/m/groups",
+      "destination": "/m/stay-connected/",
+      "permanent": true
+    },
+    {
+      "source": "/m/groups/",
+      "destination": "/m/stay-connected/",
+      "permanent": true
+    },
+    {
+      "source": "/m/group/:path*",
+      "destination": "/m/stay-connected/",
+      "permanent": true
+    },
+    {
+      "source": "/m/group/:path*/",
+      "destination": "/m/stay-connected/",
+      "permanent": true
     }
   ]
 }
